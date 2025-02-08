@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chinese Hangman</title>
+  <style>
+    /* Night mode, modern styling */
+    body {
+      background-color: #1e1e1e;
+      color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    #gallows {
+      margin-bottom: 20px;
+    }
+    #wordDisplay {
+      font-size: 2em;
+      letter-spacing: 10px;
+      margin-bottom: 20px;
+    }
+    #inputArea {
+      margin-bottom: 20px;
+    }
+    input[type="text"] {
+      padding: 10px;
+      font-size: 1em;
+      border: none;
+      border-radius: 5px;
+      width: 50px;
+      text-align: center;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #3a3a3a;
+      color: #fff;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #5a5a5a;
+    }
+    #guessedChars, #scoreboard {
+      margin-bottom: 20px;
+      font-size: 1.2em;
+    }
+    #message {
+      margin-top: 20px;
+      font-size: 1.2em;
+    }
+    /* SVG gallows sizing */
+    svg {
+      width: 200px;
+      height: 250px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Chinese Hangman</h1>
+  
+  <!-- Gallows and hangman parts drawn using SVG -->
+  <svg id="gallows" viewBox="0 0 200 250">
+    <!-- Gallows structure -->
+    <line x1="10" y1="240" x2="190" y2="240" stroke="#fff" stroke-width="4" />
+    <line x1="50" y1="240" x2="50" y2="20" stroke="#fff" stroke-width="4" />
+    <line x1="50" y1="20" x2="130" y2="20" stroke="#fff" stroke-width="4" />
+    <line x1="130" y1="20" x2="130" y2="40" stroke="#fff" stroke-width="4" />
+    
+    <!-- Hangman body parts (initially hidden) -->
+    <circle id="head" cx="130" cy="55" r="15" stroke="#fff" stroke-width="4" fill="none" visibility="hidden" />
+    <line id="body" x1="130" y1="70" x2="130" y2="120" stroke="#fff" stroke-width="4" visibility="hidden" />
+    <line id="leftArm" x1="130" y1="80" x2="110" y2="100" stroke="#fff" stroke-width="4" visibility="hidden" />
+    <line id="rightArm" x1="130" y1="80" x2="150" y2="100" stroke="#fff" stroke-width="4" visibility="hidden" />
+    <line id="leftLeg" x1="130" y1="120" x2="110" y2="150" stroke="#fff" stroke-width="4" visibility="hidden" />
+    <line id="rightLeg" x1="130" y1="120" x2="150" y2="150" stroke="#fff" stroke-width="4" visibility="hidden" />
+  </svg>
+  
+  <!-- Display of the secret word with unguessed characters as underscores -->
+  <div id="wordDisplay">_ _ _</div>
+  
+  <!-- Input area for the player's guess -->
+  <div id="inputArea">
+    <input type="text" id="guessInput" maxlength="1" placeholder="字" />
+  </div>
+  
+  <!-- Control buttons -->
+  <div id="buttons">
+    <button id="guessButton">Guess</button>
+    <button id="hintButton">Hint</button>
+    <button id="restartButton">Restart</button>
+  </div>
+  
+  <!-- Section to display guessed characters -->
+  <div id="guessedChars">
+    Guessed Characters: <span id="guessedCharsList"></span>
+  </div>
+  
+  <!-- Scoreboard to track wins and losses -->
+  <div id="scoreboard">
+    Wins: <span id="wins">0</span> | Losses: <span id="losses">0</span>
+  </div>
+  
+  <div id="message"></div>
+  
+  <script>
+    // Pool of 100 Chinese words/idioms (each at least 3 characters long)
+    const wordPool = [
+      "守株待兔", "画蛇添足", "杞人忧天", "狐假虎威", "指鹿为马", "井底之蛙", "对牛弹琴", "掩耳盗铃", "纸上谈兵", "破釜沉舟",
+      "望梅止渴", "叶公好龙", "庖丁解牛", "一箭双雕", "挥金如土", "乘风破浪", "神机妙算", "落井下石", "自相矛盾", "滥竽充数",
+      "知己知彼", "无懈可击", "谈笑风生", "风花雪月", "东施效颦", "破镜重圆", "杯弓蛇影", "草木皆兵", "马到成功", "九牛一毛",
+      "走马观花", "人山人海", "口蜜腹剑", "画龙点睛", "脱颖而出", "鹤立鸡群", "势如破竹", "同舟共济", "自力更生", "百发百中",
+      "物极必反", "一帆风顺", "多此一举", "背水一战", "兵不血刃", "一鸣惊人", "乐极生悲", "画地为牢", "水落石出", "骑虎难下",
+      "笑里藏刀", "举案齐眉", "金玉满堂", "车水马龙", "风驰电掣", "雷厉风行", "虎头蛇尾", "鸟语花香", "日新月异", "流连忘返",
+      "谋事在人", "成事在天", "精卫填海", "卧虎藏龙", "奇货可居", "迫不及待", "举世闻名", "青出于蓝", "后来居上", "披荆斩棘",
+      "挥洒自如", "一针见血", "见仁见智", "安居乐业", "风雨同舟", "指桑骂槐", "以逸待劳", "对症下药", "当机立断", "螳臂挡车",
+      "一视同仁", "弱肉强食", "杀鸡焉用牛刀", "事半功倍", "一步登天", "鸟尽弓藏", "明知故犯", "大公无私", "众志成城", "众口难调",
+      "过河拆桥", "卧薪尝胆", "苦尽甘来", "曲径通幽", "相辅相成", "一筹莫展", "披星戴月", "一言既出", "驾轻就熟", "锦上添花"
+    ];
+    
+    let currentWord = "";
+    let guessed = [];
+    let limbsLost = 0;
+    const maxLimbs = 6; // Maximum number of parts (penalties) allowed
+    let wins = 0;
+    let losses = 0;
+    let gameEnded = false;
+    
+    // DOM elements
+    const wordDisplay = document.getElementById("wordDisplay");
+    const guessInput = document.getElementById("guessInput");
+    const guessButton = document.getElementById("guessButton");
+    const hintButton = document.getElementById("hintButton");
+    const restartButton = document.getElementById("restartButton");
+    const messageDiv = document.getElementById("message");
+    const guessedCharsList = document.getElementById("guessedCharsList");
+    
+    // Update the SVG drawing based on the number of limbs lost
+    function updateGallows() {
+      document.getElementById("head").setAttribute("visibility", limbsLost > 0 ? "visible" : "hidden");
+      document.getElementById("body").setAttribute("visibility", limbsLost > 1 ? "visible" : "hidden");
+      document.getElementById("leftArm").setAttribute("visibility", limbsLost > 2 ? "visible" : "hidden");
+      document.getElementById("rightArm").setAttribute("visibility", limbsLost > 3 ? "visible" : "hidden");
+      document.getElementById("leftLeg").setAttribute("visibility", limbsLost > 4 ? "visible" : "hidden");
+      document.getElementById("rightLeg").setAttribute("visibility", limbsLost > 5 ? "visible" : "hidden");
+    }
+    
+    // Update the word display (revealing guessed characters)
+    function updateWordDisplay() {
+      let display = "";
+      for (let char of currentWord) {
+        if (guessed.includes(char)) {
+          display += char + " ";
+        } else {
+          display += "_ ";
+        }
+      }
+      wordDisplay.textContent = display.trim();
+    }
+    
+    // Update the display for guessed characters
+    function updateGuessedCharsDisplay() {
+      guessedCharsList.textContent = guessed.join(" ");
+    }
+    
+    // Update the scoreboard display
+    function updateScoreboard() {
+      document.getElementById("wins").textContent = wins;
+      document.getElementById("losses").textContent = losses;
+    }
+    
+    // Check for win/lose conditions
+    function checkGameStatus() {
+      // Win if all characters have been guessed
+      const won = currentWord.split("").every(char => guessed.includes(char));
+      if (won) {
+        if (!gameEnded) {
+          wins++;
+          updateScoreboard();
+          messageDiv.textContent = "You win!";
+          gameEnded = true;
+          guessButton.disabled = true;
+          hintButton.disabled = true;
+        }
+        return true;
+      }
+      // Lose if too many penalties (limbs drawn) have been reached
+      if (limbsLost >= maxLimbs) {
+        if (!gameEnded) {
+          losses++;
+          updateScoreboard();
+          messageDiv.textContent = "Game Over! The word was: " + currentWord;
+          gameEnded = true;
+          guessButton.disabled = true;
+          hintButton.disabled = true;
+        }
+        return true;
+      }
+      return false;
+    }
+    
+    // Start a new game
+    function newGame() {
+      currentWord = wordPool[Math.floor(Math.random() * wordPool.length)];
+      guessed = [];
+      limbsLost = 0;
+      gameEnded = false;
+      updateWordDisplay();
+      updateGallows();
+      updateGuessedCharsDisplay();
+      messageDiv.textContent = "";
+      guessButton.disabled = false;
+      hintButton.disabled = false;
+      guessInput.value = "";
+    }
+    
+    // Process a guess when "Guess" is clicked
+    guessButton.addEventListener("click", () => {
+      const guess = guessInput.value.trim();
+      if (guess === "") return;
+      if (guess.length !== 1) {
+        alert("Please enter a single Chinese character.");
+        guessInput.value = "";
+        return;
+      }
+      // Prevent duplicate guesses
+      if (guessed.includes(guess)) {
+        alert("You already guessed that character!");
+        guessInput.value = "";
+        return;
+      }
+      
+      // Record the guess regardless of whether it's correct
+      guessed.push(guess);
+      if (!currentWord.includes(guess)) {
+        limbsLost++;
+      }
+      guessInput.value = "";
+      updateWordDisplay();
+      updateGallows();
+      updateGuessedCharsDisplay();
+      checkGameStatus();
+    });
+    
+    // Process a hint when "Hint" is clicked
+    hintButton.addEventListener("click", () => {
+      // Gather all characters not yet revealed
+      const unguessedChars = currentWord.split("").filter(char => !guessed.includes(char));
+      if (unguessedChars.length === 0) return;
+      // Reveal one random unguessed character
+      const hintChar = unguessedChars[Math.floor(Math.random() * unguessedChars.length)];
+      guessed.push(hintChar);
+      // Apply penalty: add 2 limbs. (If no limbs yet, it shows the head and then the body.)
+      limbsLost += 2;
+      if (limbsLost > maxLimbs) {
+        limbsLost = maxLimbs;
+      }
+      updateWordDisplay();
+      updateGallows();
+      updateGuessedCharsDisplay();
+      checkGameStatus();
+    });
+    
+    // Restart game on clicking "Restart"
+    restartButton.addEventListener("click", newGame);
+    
+    // Allow pressing "Enter" in the input box to trigger a guess
+    guessInput.addEventListener("keyup", (event) => {
+      if (event.key === "Enter") {
+        guessButton.click();
+      }
+    });
+    
+    // Initialize the first game
+    newGame();
+  </script>
+</body>
+</html>
